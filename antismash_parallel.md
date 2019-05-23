@@ -5,16 +5,10 @@ For this recipe, we assume that you have _n_ genomes as genbank files, perhaps c
 
 Setting up the required software
 --------------------------------
-Note: This is complicated, but you will only have to do this once, and then you will have compressed files with the setup software that you can use over and over again.
+Note: This is complicated, but you will only have to do this once, and then you will have compressed files with the software that you can use over and over again.
 
 * Log into your CHTC submit node by SSH
 * Create a directory to hold your build and submit files, then `cd` into that directory
-* Download the [Miniconda](https://docs.conda.io/en/latest/miniconda.html) install script for Python 2.7:
-
-```bash
-wget https://repo.anaconda.com/miniconda/Miniconda2-latest-Linux-x86_64.sh
-```
-
 * Use a text editor to create a file called `build.sub` with the following contents:
 
 ```bash
@@ -27,7 +21,6 @@ error = process.err
 +IsBuildJob = true
 requirements = (OpSysMajorVer =?= 7) && (IsBuildSlot == true)
 
-transfer_input_files = Miniconda2-latest-Linux-x86_64.sh
 should_transfer_files = YES
 when_to_transfer_output = ON_EXIT
 
@@ -43,33 +36,30 @@ queue
 ```bash
 condor_submit -i build.sub
 ```
-* Once you get the command prompt of the interactive job, take a note of the current directory path with the `pwd` command
-* Now issue the following command:
+
+* The first step is to download and compile Python 2.7.16:
 
 ```bash
-bash Miniconda2-latest-Linux-x86_64.sh
+wget https://www.python.org/ftp/python/2.7.16/Python-2.7.16.tgz
+tar xvf Python-2.7.16.tgz
+cd Python-2.7.16
+./configure --prefix=${PWD}/../python
+make
+make install
+cd ..
+export PATH=${PWD}/python/bin:$PATH
+wget https://bootstrap.pypa.io/get-pip.py
+python get-pip.py
+rm get-pip.py
+rm -rf Python-2.7.16*
 ```
 
-* Read through and agree to the license agreement, then choose to install miniconda in the directory `${PWD}/miniconda2` directory, where `${PWD}` is the directory path you took note of above
-* When asked, choose to NOT initialize the installation
-* Issue the following command:
-
-```bash
-export PATH=${PWD}/miniconda2/bin:$PATH
-```
-
-This adds the miniconda installation to your path. Check that the right python and conda are being used with these commands:
-
-```bash
-which python
-which conda
-```
 * Now install some required python packages:
 
 ```bash
-conda install -c conda-forge -c bioconda cssselect pyquery==1.2.9 \
-	numpy helperlibs pysvg pyExcelerator backports.lzma bcbio-gff \
-	ete2 networkx pandas==0.20.3 matplotlib scipy scikit-learn
+pip install cssselect pyquery==1.2.9 numpy helperlibs pysvg \
+	pyExcelerator backports.lzma bcbio-gff ete2 networkx \
+	pandas==0.20.3 matplotlib scipy scikit-learn
 ```
 
 * Now we download some other dependencies:
@@ -181,11 +171,10 @@ wget http://meme-suite.org/meme-software/4.11.2/meme_4.11.2_2.tar.gz
 tar xvf meme_4.11.2_2.tar.gz
 cd meme_4.11.2
 # Substitute absolute path for prefix in line below
-./configure --prefix=../bin --with-url="http://meme-suite.org" --enable-build-libxml2 --enable-build-libxslt
+./configure --with-url="http://meme-suite.org" --enable-build-libxml2 --enable-build-libxslt
 make
-make install
 cd ..
-rm -rf meme_4.11.2*
+rm meme_4.11.2_2.tar.gz
 ```
 
 ```bash
@@ -210,11 +199,10 @@ chmod +x prodigal.linux
 mv prodigal.linux bin/prodigal
 ```
 
-* We now add a few folders to the `PATH` and `LD_LIBRARY_PATH` variables:
+* We now add a few folders to the `PATH` variable:
 
 ```bash
-export PATH=$PATH:${PWD}/bin:${PWD}/bin/bin
-export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:${PWD}/bin/lib
+export PATH=$PATH:${PWD}/bin:${PWD}/meme_4.11.2/src
 ```
 
 * Now we download AntiSMASH 4 and set up the databases:
@@ -250,10 +238,10 @@ hmmpress -f bgc_seeds.hmm
 cd ../../../..
 ```
 
-Before installing AntiSMASH, we need to edit a file in the miniconda2 installation:
+Before installing AntiSMASH, we need to edit a file in the python installation:
 
 ```bash
-nano miniconda2/lib/python2.7/site-packages/setuptools/command/bdist_egg.py
+nano python/lib/python2.7/site-packages/setuptools/command/bdist_egg.py
 ```
 
 Then go to line 495 (`Ctrl+W` then `Ctrl+T`, then enter `495`). The line should look like this:
@@ -277,12 +265,95 @@ cd antismash-4.2.0
 python setup.py install
 ```
 
-* Before finishing, you need to compress the `bin` and `miniconda2` directories:
+Before we go on we need to change the first line of a few files in the python installation. The reason is that they will have hard-coded the current absolute path. 
+
+* First find the absolute path to your directory with the `pwd` command, then use the commands below to find all files that mention it and swap it for a general path (below we use the path `/var/lib/condor/execute/slot1/dir_16348` as an example - make sure to substitute this for your directory path):
 
 ```bash
-tar -czvf antismash_miniconda.tar.gz miniconda2
-tar -czvf antismash_bin.tar.gz bin
+grep -r -I /var/lib/condor/execute/slot1/dir_16348 ./python/* | cut -f 1 -d ':' | sed "s?^?sed -i 's;#!/var/lib/condor/execute/slot1/dir_16348/python/bin/python;#!/usr/bin/env python;' ?" > sed.sh
+chmod +x sed.sh
+./sed.sh
+rm sed.sh
 ```
 
-* Then finish the interactive job with the `exit` command. If everything worked correctly, the job should copy over the `antismash_miniconda.tar.gz` and `antismash_bin.tar.gz` files to the submit node.
+* Before finishing, you need to compress the `bin`, `meme_4.11.2` and `python` directories:
 
+```bash
+tar -czvf antismash_python.tar.gz python
+tar -czvf antismash_bin.tar.gz bin
+tar -czvf antismash_meme.tar.gz meme_4.11.2
+```
+
+* Then finish the interactive job with the `exit` command. If everything worked correctly, the job should copy over the `antismash_python.tar.gz`, `antismash_bin.tar.gz` and `antismash_meme.tar.gz` files to the submit node.
+
+Running parallel AntiSMASH jobs
+-------------------------------
+
+* Create a directory to hold your job files and `cd` to that directory
+* Create a subdirectory to hold your input genbank files. We'll assume that it is called `input_gbk_files`
+* Copy over your input files to the `input_gbk_files` directory
+* Do the following to get a list of genbank filenames:
+
+```bash
+cd input_gbk_files
+ls -1 *.gbk > ../gbk_list
+cd ..
+```
+
+* Now use a text editor to make a submit file called `antismash.sub`, with the following contents:
+
+```bash
+universe = vanilla
+log = antismash_$(Cluster).log
+error = antismash_$(Cluster)_$(Process)_$(gbk_file).err
+executable = run_antismash.sh
+arguments = $(gbk_file)
+should_transfer_files = YES
+when_to_transfer_output = ON_EXIT
+transfer_input_files = input_gbk_files/$(gbk_file),antismash_bin.tar.gz,antismash_meme.tar.gz,antismash_python.tar.gz
+request_cpus = 4
+request_memory = 16GB
+request_disk = 25GB
+queue gbk_file from gbk_list
+```
+
+Note: You should include the exact path to the antismash tar.gz files you created above if they are not in the same directory. Also, using the arguments `--clusterblast` and `--knownclusterblast` in the script below seems to use a lot of memory. Omitting these flags will allow the use of much less.
+
+The above script queues a job for every line in the `gbk_list` file, and stores the filename in the `gbk_file` variable.
+
+* Use a text editor to make a bash script to set up and run the job called `run_antismash.sh` with the following contents:
+
+```bash
+#!/usr/bin/bash
+
+# Expand antismash files
+tar xvf antismash_bin.tar.gz
+rm antismash_bin.tar.gz
+tar xvf antismash_meme.tar.gz
+rm antismash_meme.tar.gz
+tar xvf antismash_python.tar.gz
+rm antismash_python.tar.gz
+
+# Set up path to executables and python etc.
+export PATH=${PWD}/bin:${PWD}/meme_4.11.2/src:${PWD}/python/bin:$PATH
+
+# Run AntiSMASH
+antismash --cpus 4 --clusterblast --knownclusterblast --outputfolder ${1}_antismash_output $1
+
+# Compress output
+tar -czvf ${1}_antismash_output.tar.gz ${1}_antismash_output
+```
+
+Note: You may want to change the AntiSMASH arguments, but make sure the cpus requested match the number in your submit script.
+
+* Make the script executable:
+
+```bash
+chmod +x run_antismash.sh
+```
+
+* Now you can submit the job:
+
+```bash
+condor_submit antismash.sub
+```
