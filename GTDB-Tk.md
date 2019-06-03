@@ -140,6 +140,7 @@ Running GTDB-Tk on CHTC
 universe = vanilla
 log = gtdbtk_$(Cluster).log
 error = gtdbtk_$(Cluster)_$(Process).err
+output = gtdbtk_$(Cluster)_$(Process).out
 executable = run_gtdbtk.sh
 should_transfer_files = YES
 when_to_transfer_output = ON_EXIT
