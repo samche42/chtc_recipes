@@ -160,9 +160,9 @@ Note: Remember to adapt the exact path to the `tar.gz` files to fit your setup.
 #!/usr/bin/bash
 
 # Expand gtdbtk files
-tar xvf gtdbtk_python.tar.gz
+tar xf gtdbtk_python.tar.gz
 rm gtdbtk_python.tar.gz
-tar xvf gtdbtk.r86_v2_data.tar.gz
+tar xf gtdbtk.r86_v2_data.tar.gz
 rm gtdbtk.r86_v2_data.tar.gz
 
 # Set up path to executables and python etc.
