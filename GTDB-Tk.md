@@ -146,13 +146,13 @@ should_transfer_files = YES
 when_to_transfer_output = ON_EXIT
 transfer_input_files = input_fasta_files,gtdbtk_python.tar.gz,/mnt/gluster/jkwan2/gtdbtk.r86_v2_data.tar.gz
 request_cpus = 16
-request_memory = 4GB
+request_memory = 16GB
 request_disk = 150GB
 requirements = (Target.HasGluster == true)
 queue 1
 ```
 
-Note: Remember to adapt the exact path to the `tar.gz` files to fit your setup.
+Note: Remember to adapt the exact path to the `tar.gz` files to fit your setup. Also, I found that asking for 1 GB RAM per CPU seems to work when you use `--scratch`.
 
 * Use a text editor to make a bash script to set up and run the job called `run_gtdbtk.sh` with the following contents:
 
