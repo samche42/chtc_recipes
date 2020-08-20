@@ -122,11 +122,12 @@ tar -czvf gtdbtk_python.tar.gz python
 
 * Then finish the interactive job with the `exit` command. If everything worked correctly, the job should copy over the `gtdbtk_python.tar.gz` file to the submit node.
 
-Before you run GTDB-Tk, you must download a large (23 GB) file to your `/mnt/gluster` folder. 
+Before you run GTDB-Tk, you must download a large (23 GB) file to your `/staging` folder. 
 
 ```bash
-cd /mnt/gluster/<USERNAME>
-wget https://data.ace.uq.edu.au/public/gtdbtk/release_86/gtdbtk.r86_v2_data.tar.gz
+cd /staging/<USERNAME>
+wget https://data.ace.uq.edu.au/public/gtdb/data/releases/release95/95.0/auxillary_files/gtdbtk_r95_data.tar.gz
+
 ```
 
 Running GTDB-Tk on CHTC
@@ -144,35 +145,40 @@ output = gtdbtk_$(Cluster)_$(Process).out
 executable = run_gtdbtk.sh
 should_transfer_files = YES
 when_to_transfer_output = ON_EXIT
-transfer_input_files = input_fasta_files,gtdbtk_python.tar.gz,/mnt/gluster/jkwan2/gtdbtk.r86_v2_data.tar.gz
-request_cpus = 16
-request_memory = 16GB
-request_disk = 150GB
-requirements = (Target.HasGluster == true)
+transfer_input_files = /staging/swaterworth/gtdbtk_python.tar.gz, /staging/swaterworth/gtdbtk_r95_data.tar.gz, /staging/swaterworth/input_fasta_files.tar.gz
+request_cpus = 1
+request_memory = 400GB
+request_disk = 250GB
+requirements = (Target.HasCHTCStaging == true)
 queue 1
 ```
 
-Note: Remember to adapt the exact path to the `tar.gz` files to fit your setup. Also, I found that asking for 1 GB RAM per CPU seems to work when you use `--scratch`.
+Note: Remember to adapt the exact path to the `tar.gz` files to fit your setup. Previously, we were using multiple CPUs. It seems pplacer has taken issue with that and tends to hang/quit the job without completing. You can bypass this by using just a single CPU and throwing the kitchen sink at the job in terms of memory. As you can see, I used 400Gb, but that was for ~180 genomes. You could probably use less if you have only a handful of genomes. 
 
 * Use a text editor to make a bash script to set up and run the job called `run_gtdbtk.sh` with the following contents:
 
 ```bash
 #!/usr/bin/bash
-
-# Expand gtdbtk files
-tar xf gtdbtk_python.tar.gz
+#Unpack everything and remove the tar.gz files (saves space!)
+tar xzvf gtdbtk_python.tar.gz
 rm gtdbtk_python.tar.gz
-tar xf gtdbtk.r86_v2_data.tar.gz
-rm gtdbtk.r86_v2_data.tar.gz
+tar xzvf gtdbtk_r95_data.tar.gz
+rm gtdbtk_r95_data.tar.gz
+tar xzvf input_fasta_files.tar.gz
+rm input_fasta_files.tar.gz
 
-# Set up path to executables and python etc.
+#GTDB-Tk likes things on the straigh and narrow, so let's give it a path to walk along
 export PATH=${PWD}/python/bin:$PATH
-export GTDBTK_DATA_PATH=${PWD}/release86
+export GTDBTK_DATA_PATH=${PWD}/release95
 
-# Run GTDB-Tk
-gtdbtk classify_wf --genome_dir input_fasta_files --extension fasta --out_dir gtdbtk_output --cpus 16 --scratch_dir scratch
+#For reasons beyong my (Sam's) comprehension: This hard-coded path in the gtdbtk script was not picked up by sed.sh during set up. 
+#This just ensures that GTDBtk is looking in the right place
 
-# Compress output
+sed -i "1s|.*|#!${PWD}/python/bin/python|" ${PWD}/python/bin/gtdbtk
+
+#Finally, run GTDB-Tk, tar up the results and send it off to the submit node. 
+
+gtdbtk classify_wf --genome_dir input_fasta_files --extension fasta --out_dir gtdbtk_output --cpus 1
 tar -czvf gtdbtk_output.tar.gz gtdbtk_output
 ```
 
