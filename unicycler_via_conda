@@ -1,0 +1,58 @@
+Download Miniconda in your staging directory in CHTC:
+
+wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh
+sh Miniconda3-latest-Linux-x86_64.sh
+
+Create a new batch file and paste in the following:
+
+rsync -azP /staging/swaterworth/Miniconda3-latest-Linux-x86_64.sh ./    #Change to your directory
+export HOME=$PWD
+export PATH
+sh Miniconda3-latest-Linux-x86_64.sh -b -p $PWD/miniconda3
+export PATH=$PWD/miniconda3/bin:$PATH
+
+conda init bash
+source ~/.bashrc
+
+conda install -y -c bioconda python=3.6
+
+conda install -y -c bioconda unicycler
+
+conda install -y -c bioconda samtools openssl=1.0
+
+mkdir HydroidM2_unicycler_output    #Change this to what you want your output folder called
+
+rsync -azP /staging/swaterworth/M2_*P.fastq.gz ./ #Copy over your files from your directory in staging
+gunzip *.gz
+
+unicycler --short1 M2_1P.fastq --short2 M2_2P.fastq --out HydroidM2_unicycler_output --threads 16 #Replace file names and output folder with your own
+
+tar czvf HydroidM2_unicycler_output.tar.gz HydroidM2_unicycler_output #Rename to yours
+
+mv HydroidM2_unicycler_output.tar.gz /staging/swaterworth #Same thing here: Your file should be sent to your staging folder
+
+rm *.fastq
+rm *.tar.gz
+
+Awesome! Now lets create that submit file sorted with the following:
+
+job = M2_unicycler_conda #Rename to something pertinent to your job
+universe = vanilla
+log = $(job)_$(Cluster).log
+executable = /home/swaterworth/M2_unicycler_conda.sh #Replace with your batch file (created above)
+#arguments = $(Process)
+output = $(job)_$(Cluster)_$(Process).out
+error = $(job)_$(Cluster)_$(Process).err
+should_transfer_files = YES
+when_to_transfer_output = ON_EXIT
+#transfer_output_files =
+request_cpus = 16
+request_memory = 150GB
+request_disk = 250GB
+requirements = (Target.HasCHTCStaging == true)
+queue 1
+
+Now, you run as normal; i.e.
+condor_submit M2_unicycler_conda.sub
+
+**Note: You can change the memory, disk space and threads required to suit your job, but I find these parameters are great for a single paired end library of Illumina MiSeq reads!
